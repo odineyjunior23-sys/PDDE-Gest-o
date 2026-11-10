@@ -99,6 +99,10 @@ input[type=date],input[type=number]{width:100%;padding:10px 12px;border:1px soli
 @media(max-width:700px){.ed{grid-template-columns:1fr}}
 footer{margin-bottom:clamp(70px,14vh,130px)}
 select{width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:16px;min-height:44px;background:#fff;color:var(--txt)}select:focus{outline:2px solid var(--ouro);border-color:var(--azul)}
+.pw{position:relative}
+.pw input{padding-right:48px}
+.pw .olho{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:transparent;color:var(--azul);padding:7px;min-height:0;border-radius:8px;line-height:0}
+.pw .olho:hover{background:#eef3fb}
 </style>
 </head>
 <body>
@@ -271,6 +275,14 @@ async function trocarSenha(e){e.preventDefault();const at=$('s-atual').value,n=$
   if(error)return msg('m-sen','Erro: '+error.message),false;
   if(!data)return msg('m-sen','Senha atual incorreta.'),false;
   senhaForcada=false;user.trocar_senha=false;$('m-senha').classList.remove('on');msg('m-env','Senha alterada com sucesso!','ok');return false}
+/* visualizar senha */
+const OLHO='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const OLHO_X='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19c-7 0-11-7-11-7a19.8 19.8 0 0 1 5.06-5.94M9.9 4.24A10.9 10.9 0 0 1 12 4c7 0 11 7 11 7a19.9 19.9 0 0 1-3.17 4.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>';
+document.querySelectorAll('input[type=password]').forEach(i=>{
+  const w=document.createElement('div');w.className='pw';i.parentNode.insertBefore(w,i);w.appendChild(i);
+  const b=document.createElement('button');b.type='button';b.className='olho';b.setAttribute('aria-label','Mostrar senha');b.innerHTML=OLHO;
+  b.onclick=()=>{const v=i.type==='password';i.type=v?'text':'password';b.innerHTML=v?OLHO_X:OLHO;b.setAttribute('aria-label',v?'Ocultar senha':'Mostrar senha')};
+  w.appendChild(b)});
 </script>
 </body>
 </html>
