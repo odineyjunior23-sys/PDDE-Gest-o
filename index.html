@@ -124,6 +124,12 @@ footer{padding:0 16px}
  .modal{align-items:flex-end;padding:0}
  .modal .box{max-width:none;border-radius:16px 16px 0 0;max-height:90vh;padding-bottom:max(24px,env(safe-area-inset-bottom))}
 }
+.acoes{display:flex;gap:10px;align-items:center;margin-top:8px}
+.lixo{background:#fff;color:#9b1c1c;border:1px solid #f0a8a8;padding:0;width:46px;min-width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px}
+.lixo:hover:not(:disabled){background:#fdecec}.lixo:disabled{opacity:.35;cursor:not-allowed}
+.progtag{font-size:clamp(1.15rem,3vw,1.6rem);font-weight:700;color:var(--azul);padding-bottom:4px;border-bottom:4px solid;border-image:linear-gradient(90deg,var(--g1),var(--g2)) 1;display:inline-block}
+.home .card.prog h2{display:table;margin:0 auto 12px;white-space:nowrap;font-size:clamp(1.3rem,3.2vw,2rem)}
+.home .card.prog h2::after{width:100%}
 </style>
 </head>
 <body>
@@ -158,8 +164,16 @@ footer{padding:0 16px}
 </section>
 
 <!-- USUÁRIO: ENVIO -->
+<section id="v-prog" class="hide home">
+  <div class="bar"><div>Olá, <b id="u-escola2"></b></div><div class="row" style="margin:0"><button class="sec" onclick="abrirSenha(false)">Alterar senha</button><button class="sec" onclick="sair()">Sair</button></div></div>
+  <h2 style="color:var(--azul)">Selecione o programa</h2>
+  <div class="grid" style="max-width:780px;margin:16px auto 0">
+<div class="card prog" onclick="escolherProg('basico')"><h2>PDDE Básico</h2><p>Enviar os documentos do PDDE Básico.</p></div>
+<div class="card prog" onclick="escolherProg('qualidade')"><h2>PDDE Qualidade</h2><p>Enviar os documentos do PDDE Qualidade.</p></div></div>
+</section>
+
 <section id="v-envio" class="hide">
-  <div class="bar"><div>Olá, <b id="u-escola"></b></div><div class="row" style="margin:0"><button class="sec" onclick="abrirSenha(false)">Alterar senha</button><button class="sec" onclick="sair()">Sair</button></div></div>
+  <div class="bar"><div>Olá, <b id="u-escola"></b></div><div class="progtag" id="u-prog"></div><div class="row" style="margin:0"><button class="sec" onclick="trocaProg()">Trocar PDDE</button><button class="sec" onclick="abrirSenha(false)">Alterar senha</button><button class="sec" onclick="sair()">Sair</button></div></div>
   <div class="card"><h2>Prazos de entrega</h2><div class="tbl"><table><thead><tr><th>Documento</th><th>Prazo para entrega</th><th>Status</th></tr></thead><tbody id="prazos"></tbody></table></div></div>
   <div class="card"><h2>Envio de documentos</h2>
     <div class="grid" id="uploads"></div>
@@ -187,7 +201,8 @@ try{if(top!==self)top.location=self.location}catch(e){document.body.innerHTML=''
 const SUPABASE_URL='https://xpickylillezdfkbiotu.supabase.co';
 const SUPABASE_KEY='sb_publishable_G9PIUq8tw6hu2qySj1L_eQ_gGXh0fMI';
 const BUCKET='pdde-arquivos', MAX_MB=25;
-let docs=[];
+let docs=[],prog=null;
+const PROGS={basico:'PDDE Básico',qualidade:'PDDE Qualidade'};
 const ok=!SUPABASE_URL.startsWith('COLE');
 const sb=ok?supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:false}}):null;
 if(!ok)document.getElementById('cfg').className='msg erro';
@@ -206,14 +221,14 @@ const stArq=a=>bdg(...statusArq(a));
 const valHtml=a=>a.validado?bdg('Validado','verde'):bdg('Pendente','amarelo');
 const docDe=a=>docs.find(d=>d.id===a.documento_id);
 const nomeDoc=a=>(docDe(a)||{}).nome||a.tipo;
-async function carregaDocs(){const {data}=await sb.from('pdde_documentos').select('*').order('ordem');docs=data||[]}
+async function carregaDocs(){const {data}=await sb.from('pdde_documentos').select('*').eq('programa',prog).order('ordem');docs=data||[]}
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 function msg(id,t,tipo){const e=$(id);e.className='msg '+(tipo||'erro');e.textContent=t}
 function limpar(id){$(id).className='msg'}
 
-function ir(v){['home','user','envio'].forEach(x=>$('v-'+x).classList.toggle('hide',x!==v));window.scrollTo(0,0)}
+function ir(v){['home','user','prog','envio'].forEach(x=>$('v-'+x).classList.toggle('hide',x!==v));window.scrollTo(0,0)}
 function aba(a){$('f-in').classList.toggle('hide',a!=='in');$('f-up').classList.toggle('hide',a!=='up');$('t-in').classList.toggle('on',a==='in');$('t-up').classList.toggle('on',a==='up');limpar('m-user')}
-function sair(){fimRT();user=null;ir('home')}
+function sair(){fimRT();user=null;prog=null;ir('home')}
 /* ===== USUÁRIO ===== */
 const chave=t=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
 const regras={len:s=>s.length>=8,up:s=>/\p{Lu}/u.test(s),lo:s=>/\p{Ll}/u.test(s),sp:s=>/[^\p{L}\p{N}\s]/u.test(s)};
@@ -233,29 +248,29 @@ async function entrar(e){e.preventDefault();if(!ok)return false;
   if(error)return msg('m-user','Erro: '+error.message),false;
   if(!data||!data.length)return msg('m-user','APM/Nome da escola ou senha incorretos.'),false;
   user=data[0];user.chave=login;$('f-in').reset();outroVis('l');limpar('m-user');
-  $('u-escola').textContent=user.escola;
-  await carregaDocs();await carregaMeus();renderDocs();
-  limpar('m-env');ir('envio');meus();iniciaRT();if(user.trocar_senha)abrirSenha(true);return false}
+  $('u-escola').textContent=$('u-escola2').textContent=user.escola;
+  
+  limpar('m-env');ir('prog');if(user.trocar_senha)abrirSenha(true);return false}
 let meusArq=[];
-async function carregaMeus(){const {data}=await sb.rpc('pdde_meus_arquivos',{p_usuario:user.id});meusArq=data||[]}
+async function carregaMeus(){const {data}=await sb.rpc('pdde_meus_arquivos',{p_usuario:user.id});meusArq=(data||[]).filter(a=>a.programa===prog)}
 const stDoc=d=>bdg(...statusDoc(d,meusArq.filter(a=>a.documento_id===d.id)));
 function pintaPrazos(){
   $('prazos').innerHTML=docs.map(d=>`<tr><td data-l="Documento">${esc(d.nome)}</td><td data-l="Prazo">${fmtPrazo(d.prazo)}</td><td data-l="Status">${stDoc(d)}</td></tr>`).join('')||'<tr><td colspan="3">Nenhum documento cadastrado.</td></tr>';
   docs.forEach(d=>{const e=$('b'+d.id);if(e)e.innerHTML=stDoc(d);const n=$('n'+d.id);if(n)n.textContent=d.nome;const p=$('p'+d.id);if(p)p.textContent=fmtPrazo(d.prazo)})}
 function renderDocs(){
-  $('uploads').innerHTML=docs.map(d=>`<div class="up"><b id="n${d.id}">${esc(d.nome)}</b><div style="margin:6px 0">Prazo: <b id="p${d.id}">${fmtPrazo(d.prazo)}</b> <span id="b${d.id}"></span></div><input type="file" id="f${d.id}" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.odt,.ods"><small>Máx. ${MAX_MB} MB</small><div><button onclick="enviar(${d.id},this)">Enviar arquivo</button></div></div>`).join('');
+  $('uploads').innerHTML=docs.map(d=>`<div class="up"><b id="n${d.id}">${esc(d.nome)}</b><div style="margin:6px 0">Prazo: <b id="p${d.id}">${fmtPrazo(d.prazo)}</b> <span id="b${d.id}"></span></div><input type="file" id="f${d.id}" onchange="arqSel(${d.id})" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.odt,.ods"><small>Máx. ${MAX_MB} MB</small><div class="acoes"><button onclick="enviar(${d.id},this)">Enviar arquivo</button><button type="button" class="lixo" id="x${d.id}" onclick="limparArq(${d.id})" title="Remover o arquivo selecionado" aria-label="Remover o arquivo selecionado" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button></div></div>`).join('');
   pintaPrazos()}
 async function enviar(id,btn){const d=docs.find(x=>x.id===id),f=$('f'+id).files[0];
   if(!f)return msg('m-env','Selecione um arquivo para "'+d.nome+'".');
   if(f.size>MAX_MB*1048576)return msg('m-env','Arquivo maior que '+MAX_MB+' MB.');
   btn.disabled=true;btn.textContent='Enviando...';
-  const caminho=`${user.id}/${Date.now()}_${f.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w.\-]+/g,'_')}`;
+  const caminho=`${prog}/${user.id}/${Date.now()}_${f.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w.\-]+/g,'_')}`;
   let r=await sb.storage.from(BUCKET).upload(caminho,f,{contentType:f.type||'application/octet-stream'});
-  if(!r.error){r=await sb.from('pdde_arquivos').insert({usuario_id:user.id,usuario_nome:user.nome,escola:user.escola,tipo:d.nome,documento_id:d.id,nome_arquivo:f.name,caminho,tamanho:f.size});
+  if(!r.error){r=await sb.from('pdde_arquivos').insert({usuario_id:user.id,usuario_nome:user.nome,escola:user.escola,tipo:d.nome,programa:prog,documento_id:d.id,nome_arquivo:f.name,caminho,tamanho:f.size});
     if(r.error)await sb.storage.from(BUCKET).remove([caminho])}
   btn.disabled=false;btn.textContent='Enviar arquivo';
   if(r.error)return msg('m-env','Falha no envio: '+r.error.message);
-  $('f'+id).value='';msg('m-env','"'+d.nome+'" enviado com sucesso!','ok');meus()}
+  $('f'+id).value='';arqSel(id);msg('m-env','"'+d.nome+'" enviado com sucesso!','ok');meus()}
 function pintaMeus(){
   $('meus').innerHTML=meusArq.map(a=>`<tr><td data-l="Documento"><span class="tag">${esc(nomeDoc(a))}</span></td><td data-l="Arquivo">${esc(a.nome_arquivo)}</td><td data-l="Data e hora">${dt(a.enviado_em)}</td><td data-l="Status">${stArq(a)}</td><td data-l="Validação">${valHtml(a)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhum envio ainda.</td></tr>';
   pintaPrazos()}
@@ -304,6 +319,13 @@ document.querySelectorAll('input[type=password]').forEach(i=>{
   const b=document.createElement('button');b.type='button';b.className='olho';b.setAttribute('aria-label','Mostrar senha');b.innerHTML=OLHO;
   b.onclick=()=>{const v=i.type==='password';i.type=v?'text':'password';b.innerHTML=v?OLHO_X:OLHO;b.setAttribute('aria-label',v?'Ocultar senha':'Mostrar senha')};
   w.appendChild(b)});
+/* lixeira: remover arquivo selecionado antes de enviar */
+function arqSel(id){const x=$('x'+id);if(x)x.disabled=!$('f'+id).files.length}
+function limparArq(id){$('f'+id).value='';arqSel(id);limpar('m-env')}
+/* escolha do programa: PDDE Básico ou PDDE Qualidade */
+async function escolherProg(p){prog=p;$('u-prog').textContent=PROGS[p];meusArq=[];
+  await carregaDocs();renderDocs();await meus();limpar('m-env');ir('envio');iniciaRT()}
+function trocaProg(){fimRT();prog=null;ir('prog')}
 </script>
 </body>
 </html>

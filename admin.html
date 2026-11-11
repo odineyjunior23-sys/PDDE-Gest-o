@@ -124,6 +124,9 @@ footer{padding:0 16px}
  .modal .box{max-width:none;border-radius:16px 16px 0 0;max-height:90vh;padding-bottom:max(24px,env(safe-area-inset-bottom))}
 }
 main{max-width:1200px}
+.progtag{font-size:clamp(1.15rem,3vw,1.6rem);font-weight:700;color:var(--azul);padding-bottom:4px;border-bottom:4px solid;border-image:linear-gradient(90deg,var(--g1),var(--g2)) 1;display:inline-block}
+.home .card.prog h2{display:table;margin:0 auto 12px;white-space:nowrap;font-size:clamp(1.3rem,3.2vw,2rem)}
+.home .card.prog h2::after{width:100%}
 </style>
 </head>
 <body>
@@ -148,7 +151,16 @@ main{max-width:1200px}
 </section>
 
 <!-- ADMIN: PAINEL -->
+<section id="v-adm-prog" class="hide home">
+  <div class="bar" style="justify-content:flex-end"><button class="sec" onclick="sair()">Sair</button></div>
+  <h2 style="color:var(--azul)">Selecione o programa</h2>
+  <div class="grid" style="max-width:780px;margin:16px auto 0">
+<div class="card prog" onclick="escolherProgAdm('basico')"><h2>PDDE Básico</h2><p>Verificar os documentos do PDDE Básico.</p></div>
+<div class="card prog" onclick="escolherProgAdm('qualidade')"><h2>PDDE Qualidade</h2><p>Verificar os documentos do PDDE Qualidade.</p></div></div>
+</section>
+
 <section id="v-adm" class="hide">
+  <div class="bar"><div class="progtag" id="a-prog"></div><div class="row" style="margin:0"><button class="sec" onclick="trocaProgAdm()">Trocar PDDE</button></div></div>
   <div class="card"><div class="bar" style="margin-bottom:12px"><h2 style="margin:0">Prazos de entrega</h2><button onclick="addDoc()">+ Adicionar documento</button></div><div id="ed"></div><div class="row" style="margin-top:0"><button class="verde" onclick="salvarDocs()">Salvar prazos</button></div><div id="m-docs" class="msg"></div></div>
   <div class="bar"><b>Arquivos recebidos (<span id="qtd">0</span>)</b>
     <div class="row" style="margin:0"><button class="ouro" id="b-zip" onclick="exportarZip()">Exportar todos (ZIP)</button><button class="sec" onclick="admCarregar()">Atualizar</button><button class="sec" onclick="abrirCod()">Alterar código de acesso</button><button class="sec" onclick="sair()">Sair</button></div></div>
@@ -190,7 +202,8 @@ const SUPABASE_URL='https://xpickylillezdfkbiotu.supabase.co';
 const SUPABASE_KEY='sb_publishable_G9PIUq8tw6hu2qySj1L_eQ_gGXh0fMI';
 const ADMIN_EMAIL='admin@pdde.local';
 const BUCKET='pdde-arquivos', MAX_MB=25;
-let docs=[];
+let docs=[],prog=null;
+const PROGS={basico:'PDDE Básico',qualidade:'PDDE Qualidade'};
 const ok=!SUPABASE_URL.startsWith('COLE');
 const sb=ok?supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false,autoRefreshToken:true}}):null;
 if(!ok)document.getElementById('cfg').className='msg erro';
@@ -209,7 +222,7 @@ const stArq=a=>bdg(...statusArq(a));
 const valHtml=a=>a.validado?bdg('Validado','verde'):bdg('Pendente','amarelo');
 const docDe=a=>docs.find(d=>d.id===a.documento_id);
 const nomeDoc=a=>(docDe(a)||{}).nome||a.tipo;
-async function carregaDocs(){const {data}=await sb.from('pdde_documentos').select('*').order('ordem');docs=data||[]}
+async function carregaDocs(){const {data}=await sb.from('pdde_documentos').select('*').eq('programa',prog).order('ordem');docs=data||[]}
 async function sha(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 function msg(id,t,tipo){const e=$(id);e.className='msg '+(tipo||'erro');e.textContent=t}
 function limpar(id){$(id).className='msg'}
@@ -219,9 +232,9 @@ function admPrepara(){limpar('m-adm');$('a-senha').value=''}
 async function admEntrar(e){e.preventDefault();if(!ok)return false;
   const {error}=await sb.auth.signInWithPassword({email:ADMIN_EMAIL,password:$('a-senha').value});
   if(error)return msg('m-adm','Código de acesso incorreto.'),false;
-  $('a-senha').value='';await carregaDocs();renderEd();ir('adm');admCarregar();iniciaAdm();carregaEscolas();return false}
+  $('a-senha').value='';ir('adm-prog');return false}
 async function admCarregar(){limpar('m-lista');
-  const {data,error}=await sb.from('pdde_arquivos').select('*').order('enviado_em',{ascending:false});
+  const {data,error}=await sb.from('pdde_arquivos').select('*').eq('programa',prog).order('enviado_em',{ascending:false});
   if(error)return msg('m-lista','Erro ao carregar: '+error.message);
   arquivos=data||[];admRender();if(atual){const n=arquivos.find(x=>x.id===atual.id);if(n){atual=n;if($('modal').classList.contains('on'))pintaVal()}}}
 function admRender(){const q=$('busca').value.toLowerCase();
@@ -247,7 +260,7 @@ async function exportarZip(){if(!arquivos.length)return alert('Não há arquivos
     zip.file(`${pasta(a.escola)}/${pasta(nomeDoc(a))}/${new Date(a.enviado_em).toISOString().slice(0,10)}_${pasta(a.nome_arquivo)}`,data);
     csv.push([a.nome_arquivo,nomeDoc(a),a.escola,dt(a.enviado_em),statusArq(a)[0],a.validado?'Validado':'Pendente'].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';'))}
   zip.file('lista_de_arquivos.csv','\ufeff'+csv.join('\n'));
-  salvar(await zip.generateAsync({type:'blob'}),'PDDE_arquivos_'+new Date().toISOString().slice(0,10)+'.zip');
+  salvar(await zip.generateAsync({type:'blob'}),'PDDE_'+prog+'_arquivos_'+new Date().toISOString().slice(0,10)+'.zip');
   b.disabled=false;b.textContent='Exportar todos (ZIP)';if(falhas)alert(falhas+' arquivo(s) não puderam ser baixados.')}
 
 function abrirCod(){['x-atual','x-novo','x-novo2'].forEach(i=>$(i).value='');limpar('m-cod');$('modal2').classList.add('on')}
@@ -260,8 +273,8 @@ async function alterarCod(e){e.preventDefault();const n=$('x-novo').value;
   if(u.error)return msg('m-cod','Erro ao alterar: '+u.error.message),false;
   if($('v-adm').classList.contains('hide'))await sb.auth.signOut();
   ['x-atual','x-novo','x-novo2'].forEach(i=>$(i).value='');msg('m-cod','Código de acesso alterado com sucesso!','ok');return false}
-function ir(v){['adm-login','adm'].forEach(x=>$('v-'+x).classList.toggle('hide',x!==v));if(v==='adm-login')admPrepara();window.scrollTo(0,0)}
-function sair(){fimAdm();sb&&sb.auth.signOut();ir('adm-login')}
+function ir(v){['adm-login','adm-prog','adm'].forEach(x=>$('v-'+x).classList.toggle('hide',x!==v));if(v==='adm-login')admPrepara();window.scrollTo(0,0)}
+function sair(){fimAdm();prog=null;sb&&sb.auth.signOut();ir('adm-login')}
 function pintaVal(){$('d-val').innerHTML=valHtml(atual);const b=$('b-val');b.textContent=atual.validado?'Desfazer validação':'✔ Validado';b.className=atual.validado?'sec':'verde'}
 async function alternarVal(){if(!atual)return;const b=$('b-val'),v=!atual.validado;b.disabled=true;
   const {data,error}=await sb.from('pdde_arquivos').update({validado:v,validado_em:v?new Date().toISOString():null}).eq('id',atual.id).select();
@@ -275,7 +288,7 @@ async function salvarDocs(){const rows=[...document.querySelectorAll('#ed .ed')]
   if(rows.some(r=>!r.querySelector('.e-nome').value.trim()))return msg('m-docs','Preencha o nome de todos os documentos ou remova o campo vazio.');
   let ordem=Math.max(0,...docs.map(d=>d.ordem||0));
   for(const r of rows){const dados={nome:r.querySelector('.e-nome').value.trim(),prazo:r.querySelector('.e-prazo').value||null};
-    const q=r.dataset.id==='new'?sb.from('pdde_documentos').insert({...dados,ordem:++ordem}).select():sb.from('pdde_documentos').update(dados).eq('id',+r.dataset.id).select();
+    const q=r.dataset.id==='new'?sb.from('pdde_documentos').insert({...dados,programa:prog,ordem:++ordem}).select():sb.from('pdde_documentos').update(dados).eq('id',+r.dataset.id).select();
     const {data,error}=await q;
     if(error||!data||!data.length)return msg('m-docs','Erro ao salvar'+(error?': '+error.message:'. Verifique se o SQL de configuração foi executado.'))}
   await carregaDocs();renderEd();admRender();msg('m-docs','Documentos e prazos salvos com sucesso!','ok')}
@@ -309,6 +322,10 @@ async function redefinir(id){const u=escolasLista.find(x=>x.id===id);if(!u)retur
   tempAtual=s;$('t-escola').textContent=u.escola;$('t-senha').textContent=s;$('m-temp').classList.add('on');carregaEscolas()}
 function copiarTemp(){if(navigator.clipboard)navigator.clipboard.writeText(tempAtual).then(()=>alert('Senha copiada.'),()=>{})}
 function fechaTemp(){tempAtual='';$('t-senha').textContent='';$('m-temp').classList.remove('on')}
+/* escolha do programa no painel */
+async function escolherProgAdm(p){prog=p;$('a-prog').textContent=PROGS[p];arquivos=[];admRender();
+  await carregaDocs();renderEd();ir('adm');admCarregar();iniciaAdm();carregaEscolas()}
+function trocaProgAdm(){fimAdm();prog=null;fechar();ir('adm-prog')}
 ir('adm-login');
 /* visualizar senha */
 const OLHO='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
