@@ -90,9 +90,15 @@ input[type=text],input[type=password]{font-size:16px}
 .home .card h2{border:0;border-image:none;padding:0;margin:0 0 12px;text-align:center;font-size:clamp(2rem,7vw,2.8rem)}
 .home .card h2::after{content:"";display:block;width:80px;height:5px;border-radius:3px;margin:12px auto 0;background:linear-gradient(90deg,var(--g1),var(--g2))}
 input[type=date],input[type=number]{width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:16px;min-height:44px;background:#fff}
-.ed{display:grid;grid-template-columns:2fr 1fr auto auto;gap:10px;align-items:end;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--borda)}
-@media(max-width:700px){.ed{grid-template-columns:1fr}}
-button.rem{background:#fff;color:#b42318;border:1px solid #b42318;padding:8px 14px}button.rem:hover{background:#fdecea}button.rem:disabled{opacity:.6;cursor:wait}
+.ed{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto auto;grid-template-areas:"nome prazo st rem";gap:10px 12px;align-items:end;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--borda)}
+.ed>*{min-width:0}.ed-nome{grid-area:nome}.ed-prazo{grid-area:prazo}.ed .st-slot{grid-area:st}.ed-rem{grid-area:rem}
+.ed .st-slot{display:flex;align-items:center;min-height:44px;white-space:nowrap}
+.ed-rem button{white-space:nowrap;min-width:96px}
+button.rem{background:#fff;color:#b42318;border:1px solid #b42318;padding:8px 14px}button.rem:hover{background:#fdecea}button.rem:active{background:#fadbd8}button.rem:focus-visible{outline:3px solid #f5b5ae;outline-offset:2px}button.rem:disabled{opacity:.6;cursor:wait}
+/* tablet: nome em linha própria; prazo, status e remover na linha de baixo */
+@media(max-width:1000px){.ed{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"nome nome nome" "prazo st rem"}}
+/* celular: nome e prazo em largura total; status à esquerda e remover à direita */
+@media(max-width:600px){.ed{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"nome nome" "prazo prazo" "st rem";margin-bottom:18px;padding-bottom:18px}.ed-rem button{min-width:120px}}
 .pw{position:relative}
 .pw input{padding-right:48px}
 .pw .olho{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:transparent;color:var(--azul);padding:7px;min-height:0;border-radius:8px;line-height:0}
@@ -282,13 +288,17 @@ async function alternarVal(){if(!atual)return;const b=$('b-val'),v=!atual.valida
   b.disabled=false;if(error||!data||!data.length)return alert('Não foi possível atualizar a validação.'+(error?' '+error.message:''));
   atual=data[0];const i=arquivos.findIndex(x=>x.id===atual.id);if(i>-1)arquivos[i]=atual;pintaVal();admRender()}
 const stGeral=d=>{const f=fimPrazo(d);return f&&new Date()>f?bdg('Finalizado','verde'):bdg('Em execução','amarelo')};
-const edRow=d=>`<div class="ed" data-id="${d?d.id:'new'}"><div><label>Nome do documento</label><input type="text" class="e-nome" value="${d?esc(d.nome):''}" placeholder="Nome do novo documento"></div><div><label>Prazo final</label><input type="date" class="e-prazo" value="${d&&d.prazo||''}"></div><div class="st-slot">${d?stGeral(d):''}</div><div><button type="button" class="rem" onclick="removerDoc(this)">Remover</button></div></div>`;
+const edRow=d=>`<div class="ed" data-id="${d?d.id:'new'}"><div class="ed-nome"><label>Nome do documento</label><input type="text" class="e-nome" value="${d?esc(d.nome):''}" placeholder="Nome do novo documento"></div><div class="ed-prazo"><label>Prazo final</label><input type="date" class="e-prazo" value="${d&&d.prazo||''}"></div><div class="st-slot">${d?stGeral(d):''}</div><div class="ed-rem"><button type="button" class="rem" title="Remover este documento" onclick="removerDoc(this)">Remover</button></div></div>`;
 async function removerDoc(b){const r=b.closest('.ed'),nome=r.querySelector('.e-nome').value.trim()||'este documento';
   if(r.dataset.id==='new'){r.remove();return}
   if(!confirm('Remover "'+nome+'"? Esta ação exclui o prazo definitivamente e não pode ser desfeita.'))return;
   b.disabled=true;
-  const {error}=await sb.from('pdde_documentos').delete().eq('id',+r.dataset.id);
-  if(error){b.disabled=false;return msg('m-docs','Não foi possível remover'+(error?': '+error.message:'')+'. Se já existirem arquivos enviados para este documento, remova-os antes.')}
+  const {data,error}=await sb.from('pdde_documentos').delete().eq('id',+r.dataset.id).select();
+  b.disabled=false;
+  if(error){
+    const fk=error.code==='23503';
+    return msg('m-docs',fk?'Não é possível remover: já existem arquivos enviados vinculados a este documento. Remova-os primeiro ou ajuste a chave estrangeira (ON DELETE CASCADE).':'Não foi possível remover: '+error.message)}
+  if(!data||!data.length)return msg('m-docs','O banco não permitiu a exclusão (nenhuma linha removida). Falta a permissão de DELETE na tabela pdde_documentos (política RLS). Execute o SQL de permissão no Supabase.');
   await carregaDocs();renderEd();admRender();msg('m-docs','Documento removido com sucesso!','ok')}
 function renderEd(){$('ed').innerHTML=docs.map(edRow).join('')||'<p>Nenhum documento cadastrado. Rode o SQL de configuração.</p>'}
 function addDoc(){const p=$('ed').querySelector('p');if(p)p.remove();const w=document.createElement('div');w.innerHTML=edRow(null);const r=w.firstElementChild;$('ed').appendChild(r);r.querySelector('.e-nome').focus()}
