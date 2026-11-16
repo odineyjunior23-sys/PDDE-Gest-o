@@ -90,8 +90,9 @@ input[type=text],input[type=password]{font-size:16px}
 .home .card h2{border:0;border-image:none;padding:0;margin:0 0 12px;text-align:center;font-size:clamp(2rem,7vw,2.8rem)}
 .home .card h2::after{content:"";display:block;width:80px;height:5px;border-radius:3px;margin:12px auto 0;background:linear-gradient(90deg,var(--g1),var(--g2))}
 input[type=date],input[type=number]{width:100%;padding:10px 12px;border:1px solid var(--borda);border-radius:8px;font-size:16px;min-height:44px;background:#fff}
-.ed{display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--borda)}
+.ed{display:grid;grid-template-columns:2fr 1fr auto auto;gap:10px;align-items:end;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--borda)}
 @media(max-width:700px){.ed{grid-template-columns:1fr}}
+button.rem{background:#fff;color:#b42318;border:1px solid #b42318;padding:8px 14px}button.rem:hover{background:#fdecea}button.rem:disabled{opacity:.6;cursor:wait}
 .pw{position:relative}
 .pw input{padding-right:48px}
 .pw .olho{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:transparent;color:var(--azul);padding:7px;min-height:0;border-radius:8px;line-height:0}
@@ -281,7 +282,14 @@ async function alternarVal(){if(!atual)return;const b=$('b-val'),v=!atual.valida
   b.disabled=false;if(error||!data||!data.length)return alert('Não foi possível atualizar a validação.'+(error?' '+error.message:''));
   atual=data[0];const i=arquivos.findIndex(x=>x.id===atual.id);if(i>-1)arquivos[i]=atual;pintaVal();admRender()}
 const stGeral=d=>{const f=fimPrazo(d);return f&&new Date()>f?bdg('Finalizado','verde'):bdg('Em execução','amarelo')};
-const edRow=d=>`<div class="ed" data-id="${d?d.id:'new'}"><div><label>Nome do documento</label><input type="text" class="e-nome" value="${d?esc(d.nome):''}" placeholder="Nome do novo documento"></div><div><label>Prazo final</label><input type="date" class="e-prazo" value="${d&&d.prazo||''}"></div><div class="st-slot">${d?stGeral(d):'<button type="button" class="sec" onclick="this.closest(\'.ed\').remove()">Remover</button>'}</div></div>`;
+const edRow=d=>`<div class="ed" data-id="${d?d.id:'new'}"><div><label>Nome do documento</label><input type="text" class="e-nome" value="${d?esc(d.nome):''}" placeholder="Nome do novo documento"></div><div><label>Prazo final</label><input type="date" class="e-prazo" value="${d&&d.prazo||''}"></div><div class="st-slot">${d?stGeral(d):''}</div><div><button type="button" class="rem" onclick="removerDoc(this)">Remover</button></div></div>`;
+async function removerDoc(b){const r=b.closest('.ed'),nome=r.querySelector('.e-nome').value.trim()||'este documento';
+  if(r.dataset.id==='new'){r.remove();return}
+  if(!confirm('Remover "'+nome+'"? Esta ação exclui o prazo definitivamente e não pode ser desfeita.'))return;
+  b.disabled=true;
+  const {error}=await sb.from('pdde_documentos').delete().eq('id',+r.dataset.id);
+  if(error){b.disabled=false;return msg('m-docs','Não foi possível remover'+(error?': '+error.message:'')+'. Se já existirem arquivos enviados para este documento, remova-os antes.')}
+  await carregaDocs();renderEd();admRender();msg('m-docs','Documento removido com sucesso!','ok')}
 function renderEd(){$('ed').innerHTML=docs.map(edRow).join('')||'<p>Nenhum documento cadastrado. Rode o SQL de configuração.</p>'}
 function addDoc(){const p=$('ed').querySelector('p');if(p)p.remove();const w=document.createElement('div');w.innerHTML=edRow(null);const r=w.firstElementChild;$('ed').appendChild(r);r.querySelector('.e-nome').focus()}
 async function salvarDocs(){const rows=[...document.querySelectorAll('#ed .ed')];
