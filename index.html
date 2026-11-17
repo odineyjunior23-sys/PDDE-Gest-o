@@ -212,10 +212,12 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const dt=d=>new Date(d).toLocaleString('pt-BR');
 const fmtPrazo=p=>p?new Date(p+'T12:00:00').toLocaleDateString('pt-BR'):'—';
 const fimPrazo=d=>d&&d.prazo?new Date(d.prazo+'T23:59:59'):null;
-function statusDoc(d,envios){envios=(envios||[]).filter(a=>!a.reprovado);if(envios.some(a=>a.validado))return['Finalizado','verde'];const fim=fimPrazo(d);
-  if(!fim||new Date()<=fim)return['Em execução','amarelo'];
-  return(envios||[]).some(a=>new Date(a.enviado_em)<=fim)?['Finalizado','verde']:['Atrasado','vermelho']}
-const statusArq=a=>a.reprovado?['Reprovado','vermelho']:statusDoc(docDe(a),[a]);
+function statusDoc(d,envios){
+  /* Finalizado somente quando o Admin validou o arquivo; senão depende do prazo */
+  if((envios||[]).some(a=>a.validado&&!a.reprovado))return['Finalizado','verde'];
+  const fim=fimPrazo(d);
+  return(!fim||new Date()<=fim)?['Em execução','amarelo']:['Atrasado','vermelho']}
+const statusArq=a=>statusDoc(docDe(a),[a]);
 const bdg=(t,c)=>`<span class="st ${c}">${t}</span>`;
 const stArq=a=>bdg(...statusArq(a));
 const valHtml=a=>a.reprovado?bdg('Reprovado','vermelho'):a.validado?bdg('Validado','verde'):bdg('Pendente','amarelo');
