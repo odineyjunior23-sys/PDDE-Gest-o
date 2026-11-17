@@ -212,13 +212,13 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const dt=d=>new Date(d).toLocaleString('pt-BR');
 const fmtPrazo=p=>p?new Date(p+'T12:00:00').toLocaleDateString('pt-BR'):'—';
 const fimPrazo=d=>d&&d.prazo?new Date(d.prazo+'T23:59:59'):null;
-function statusDoc(d,envios){if((envios||[]).some(a=>a.validado))return['Finalizado','verde'];const fim=fimPrazo(d);
+function statusDoc(d,envios){envios=(envios||[]).filter(a=>!a.reprovado);if(envios.some(a=>a.validado))return['Finalizado','verde'];const fim=fimPrazo(d);
   if(!fim||new Date()<=fim)return['Em execução','amarelo'];
   return(envios||[]).some(a=>new Date(a.enviado_em)<=fim)?['Finalizado','verde']:['Atrasado','vermelho']}
-const statusArq=a=>statusDoc(docDe(a),[a]);
+const statusArq=a=>a.reprovado?['Reprovado','vermelho']:statusDoc(docDe(a),[a]);
 const bdg=(t,c)=>`<span class="st ${c}">${t}</span>`;
 const stArq=a=>bdg(...statusArq(a));
-const valHtml=a=>a.validado?bdg('Validado','verde'):bdg('Pendente','amarelo');
+const valHtml=a=>a.reprovado?bdg('Reprovado','vermelho'):a.validado?bdg('Validado','verde'):bdg('Pendente','amarelo');
 const docDe=a=>docs.find(d=>d.id===a.documento_id);
 const nomeDoc=a=>(docDe(a)||{}).nome||a.tipo;
 async function carregaDocs(){const {data}=await sb.from('pdde_documentos').select('*').eq('programa',prog).order('ordem');docs=data||[]}
@@ -277,15 +277,16 @@ function pintaMeus(){
 async function meus(){await carregaMeus();pintaMeus()}
 async function atualizaDocs(){const antes=docs.map(d=>d.id).join();await carregaDocs();if(docs.map(d=>d.id).join()!==antes)renderDocs();else pintaPrazos()}
 /* atualização em tempo real */
-let canal=null,t1=null,t2=null;
-function fimRT(){if(canal){sb.removeChannel(canal);canal=null}clearInterval(t1);clearInterval(t2)}
+let canal=null,t1=null,t2=null,tR=null;
+function fimRT(){if(canal){sb.removeChannel(canal);canal=null}clearInterval(t1);clearInterval(t2);clearTimeout(tR)}
 function iniciaRT(){fimRT();
   canal=sb.channel('pdde-escola')
     .on('postgres_changes',{event:'*',schema:'public',table:'pdde_documentos'},async()=>{await atualizaDocs();pintaMeus()})
     .on('postgres_changes',{event:'*',schema:'public',table:'pdde_avisos',filter:'usuario_id=eq.'+user.id},()=>meus())
+    .on('postgres_changes',{event:'*',schema:'public',table:'pdde_arquivos'},()=>{clearTimeout(tR);tR=setTimeout(meus,200)})
     .subscribe();
   t1=setInterval(pintaMeus,15000);
-  t2=setInterval(async()=>{await atualizaDocs();await meus()},20000)}
+  t2=setInterval(async()=>{await atualizaDocs();await meus()},8000)}
 /* lista de escolas (edite aqui para incluir ou corrigir nomes) */
 const LOCAIS=[
  ['CIEIs',['CIEI GREGORIA MARTINS','CIEI NOSSA SENHORA AUXILIADORA','CIEI SAO BENEDITO','CIEI MARIA DALPHINA REZENDE DE CASTRO','CIEI WALTRUDES FERREIRA MUZZI','CIEI JOANA SAYD']],

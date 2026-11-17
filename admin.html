@@ -34,7 +34,7 @@ input:focus{outline:2px solid var(--ouro);border-color:var(--azul)}
 button{cursor:pointer;border:0;border-radius:8px;padding:10px 18px;font-size:.92rem;font-weight:600;background:var(--azul);color:#fff}
 button:hover{background:var(--azul2)}
 button.ouro{background:var(--ouro);color:#2a2200}button.ouro:hover{background:#c9a400}
-button.verde{background:var(--verde)}button.verde:hover{background:#17803d}
+button.verde{background:var(--verde)}button.verde:hover{background:#17803d}button.vermelho{background:#c62828}button.vermelho:hover{background:#a61f1f}
 button.sec{background:#fff;color:var(--azul);border:1px solid var(--azul)}button.sec:hover{background:#eef3fb}
 button:disabled{opacity:.6;cursor:wait}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
@@ -182,7 +182,7 @@ main{max-width:1200px}
 <div class="modal" id="modal" onclick="if(event.target===this)fechar()">
   <div class="box"><h2 style="margin:0 0 6px;color:var(--azul)">Arquivo enviado</h2>
     <dl><dt>Nome do arquivo</dt><dd id="d-nome"></dd><dt>Documento</dt><dd id="d-tipo"></dd><dt>Escola</dt><dd id="d-por"></dd><dt>Data e hora do envio</dt><dd id="d-data"></dd><dt>Validação</dt><dd id="d-val"></dd></dl>
-    <div class="row"><button id="b-baixar" onclick="baixar()">⬇ Baixar arquivo</button><button class="verde" id="b-val" onclick="alternarVal()">✔ Validado</button><button class="sec" onclick="fechar()">Fechar</button></div>
+    <div class="row"><button id="b-baixar" onclick="baixar()">⬇ Baixar arquivo</button><button class="verde" id="b-val" onclick="alternarVal()">✔ Validado</button><button class="vermelho" id="b-rep" onclick="alternarRep()">✖ Reprovado</button><button class="sec" onclick="fechar()">Fechar</button></div>
   </div>
 </div>
 <div class="modal" id="modal2" onclick="if(event.target===this)this.classList.remove('on')">
@@ -220,13 +220,13 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const dt=d=>new Date(d).toLocaleString('pt-BR');
 const fmtPrazo=p=>p?new Date(p+'T12:00:00').toLocaleDateString('pt-BR'):'—';
 const fimPrazo=d=>d&&d.prazo?new Date(d.prazo+'T23:59:59'):null;
-function statusDoc(d,envios){if((envios||[]).some(a=>a.validado))return['Finalizado','verde'];const fim=fimPrazo(d);
+function statusDoc(d,envios){envios=(envios||[]).filter(a=>!a.reprovado);if(envios.some(a=>a.validado))return['Finalizado','verde'];const fim=fimPrazo(d);
   if(!fim||new Date()<=fim)return['Em execução','amarelo'];
   return(envios||[]).some(a=>new Date(a.enviado_em)<=fim)?['Finalizado','verde']:['Atrasado','vermelho']}
-const statusArq=a=>statusDoc(docDe(a),[a]);
+const statusArq=a=>a.reprovado?['Reprovado','vermelho']:statusDoc(docDe(a),[a]);
 const bdg=(t,c)=>`<span class="st ${c}">${t}</span>`;
 const stArq=a=>bdg(...statusArq(a));
-const valHtml=a=>a.validado?bdg('Validado','verde'):bdg('Pendente','amarelo');
+const valHtml=a=>a.reprovado?bdg('Reprovado','vermelho'):a.validado?bdg('Validado','verde'):bdg('Pendente','amarelo');
 const docDe=a=>docs.find(d=>d.id===a.documento_id);
 const nomeDoc=a=>(docDe(a)||{}).nome||a.tipo;
 async function carregaDocs(){const {data}=await sb.from('pdde_documentos').select('*').eq('programa',prog).order('ordem');docs=data||[]}
@@ -265,7 +265,7 @@ async function exportarZip(){if(!arquivos.length)return alert('Não há arquivos
     if(error){falhas++;continue}
     const pasta=s=>String(s).replace(/[\\/:*?"<>|]+/g,'-').trim();
     zip.file(`${pasta(a.escola)}/${pasta(nomeDoc(a))}/${new Date(a.enviado_em).toISOString().slice(0,10)}_${pasta(a.nome_arquivo)}`,data);
-    csv.push([a.nome_arquivo,nomeDoc(a),a.escola,dt(a.enviado_em),statusArq(a)[0],a.validado?'Validado':'Pendente'].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';'))}
+    csv.push([a.nome_arquivo,nomeDoc(a),a.escola,dt(a.enviado_em),statusArq(a)[0],a.reprovado?'Reprovado':a.validado?'Validado':'Pendente'].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';'))}
   zip.file('lista_de_arquivos.csv','\ufeff'+csv.join('\n'));
   salvar(await zip.generateAsync({type:'blob'}),'PDDE_'+prog+'_arquivos_'+new Date().toISOString().slice(0,10)+'.zip');
   b.disabled=false;b.textContent='Exportar todos (ZIP)';if(falhas)alert(falhas+' arquivo(s) não puderam ser baixados.')}
@@ -282,11 +282,21 @@ async function alterarCod(e){e.preventDefault();const n=$('x-novo').value;
   ['x-atual','x-novo','x-novo2'].forEach(i=>$(i).value='');msg('m-cod','Código de acesso alterado com sucesso!','ok');return false}
 function ir(v){['adm-login','adm-prog','adm'].forEach(x=>$('v-'+x).classList.toggle('hide',x!==v));if(v==='adm-login')admPrepara();window.scrollTo(0,0)}
 function sair(){fimAdm();prog=null;sb&&sb.auth.signOut();ir('adm-login')}
-function pintaVal(){$('d-val').innerHTML=valHtml(atual);const b=$('b-val');b.textContent=atual.validado?'Desfazer validação':'✔ Validado';b.className=atual.validado?'sec':'verde'}
-async function alternarVal(){if(!atual)return;const b=$('b-val'),v=!atual.validado;b.disabled=true;
-  const {data,error}=await sb.from('pdde_arquivos').update({validado:v,validado_em:v?new Date().toISOString():null}).eq('id',atual.id).select();
-  b.disabled=false;if(error||!data||!data.length)return alert('Não foi possível atualizar a validação.'+(error?' '+error.message:''));
-  atual=data[0];const i=arquivos.findIndex(x=>x.id===atual.id);if(i>-1)arquivos[i]=atual;pintaVal();admRender()}
+function pintaVal(){$('d-val').innerHTML=valHtml(atual);
+  const b=$('b-val'),r=$('b-rep');
+  b.textContent=atual.validado?'Desfazer validação':'✔ Validado';b.className=atual.validado?'sec':'verde';
+  r.textContent=atual.reprovado?'Desfazer reprovação':'✖ Reprovado';r.className=atual.reprovado?'sec':'vermelho'}
+async function definirStatus(campo){if(!atual)return;const b=$('b-val'),r=$('b-rep');
+  const v=campo==='validado'?!atual.validado:!atual.reprovado,agora=new Date().toISOString();
+  const upd=campo==='validado'
+    ?{validado:v,validado_em:v?agora:null,reprovado:false,reprovado_em:null}
+    :{reprovado:v,reprovado_em:v?agora:null,validado:false,validado_em:null};
+  b.disabled=r.disabled=true;
+  const {data,error}=await sb.from('pdde_arquivos').update(upd).eq('id',atual.id).select();
+  b.disabled=r.disabled=false;
+  if(error||!data||!data.length)return alert('Não foi possível atualizar o status.'+(error?' '+error.message:''));
+  atual=data[0];const k=arquivos.findIndex(x=>x.id===atual.id);if(k>-1)arquivos[k]=atual;pintaVal();admRender()}
+const alternarVal=()=>definirStatus('validado'),alternarRep=()=>definirStatus('reprovado');
 const stGeral=d=>{const f=fimPrazo(d);return f&&new Date()>f?bdg('Finalizado','verde'):bdg('Em execução','amarelo')};
 const edRow=d=>`<div class="ed" data-id="${d?d.id:'new'}"><div class="ed-nome"><label>Nome do documento</label><input type="text" class="e-nome" value="${d?esc(d.nome):''}" placeholder="Nome do novo documento"></div><div class="ed-prazo"><label>Prazo final</label><input type="date" class="e-prazo" value="${d&&d.prazo||''}"></div><div class="st-slot">${d?stGeral(d):''}</div><div class="ed-rem"><button type="button" class="rem" title="Remover este documento" onclick="removerDoc(this)">Remover</button></div></div>`;
 async function removerDoc(b){const r=b.closest('.ed'),nome=r.querySelector('.e-nome').value.trim()||'este documento';
