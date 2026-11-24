@@ -130,6 +130,19 @@ footer{padding:0 16px}
 .progtag{font-size:clamp(1.15rem,3vw,1.6rem);font-weight:700;color:var(--azul);padding-bottom:4px;border-bottom:4px solid;border-image:linear-gradient(90deg,var(--g1),var(--g2)) 1;display:inline-block}
 .home .card.prog h2{display:table;margin:0 auto 12px;white-space:nowrap;font-size:clamp(1.3rem,3.2vw,2rem)}
 .home .card.prog h2::after{width:100%}
+
+/* tabelas: título do campo e informação centralizados */
+.ctr th,.ctr td{text-align:center;vertical-align:middle}
+.ctr .tag{text-align:center}
+@media(max-width:820px){
+ .ctr td{flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:4px}
+ .ctr td[data-l]::before{text-align:center}
+ .ctr td:last-child{padding-bottom:10px}
+}
+
+/* data e hora: data inteira em cima, hora embaixo */
+.dh{display:block;white-space:nowrap}
+.dh+.dh{margin-top:2px}
 </style>
 </head>
 <body>
@@ -174,13 +187,13 @@ footer{padding:0 16px}
 
 <section id="v-envio" class="hide">
   <div class="bar"><div>Olá, <b id="u-escola"></b></div><div class="progtag" id="u-prog"></div><div class="row" style="margin:0"><button class="sec" onclick="trocaProg()">Trocar PDDE</button><button class="sec" onclick="abrirSenha(false)">Alterar senha</button><button class="sec" onclick="sair()">Sair</button></div></div>
-  <div class="card"><h2>Prazos de entrega</h2><div class="tbl"><table><thead><tr><th>Documento</th><th>Prazo para entrega</th><th>Status</th></tr></thead><tbody id="prazos"></tbody></table></div></div>
+  <div class="card"><h2>Prazos de entrega</h2><div class="tbl"><table class="ctr"><thead><tr><th>Documento</th><th>Prazo para entrega</th><th>Status</th></tr></thead><tbody id="prazos"></tbody></table></div></div>
   <div class="card"><h2>Envio de documentos</h2>
     <div class="grid" id="uploads"></div>
     <div id="m-env" class="msg"></div>
   </div>
   <div class="card"><h2>Meus envios</h2>
-    <div class="tbl"><table><thead><tr><th>Documento</th><th>Arquivo</th><th>Data e hora</th><th>Status</th><th>Validação</th></tr></thead><tbody id="meus"></tbody></table></div>
+    <div class="tbl"><table class="ctr"><thead><tr><th>Documento</th><th>Arquivo</th><th>Data e hora</th><th>Status</th><th>Validação</th></tr></thead><tbody id="meus"></tbody></table></div>
   </div>
 </section>
 
@@ -210,6 +223,7 @@ let user=null, admHash=null, arquivos=[], atual=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dt=d=>new Date(d).toLocaleString('pt-BR');
+const dtHtml=d=>{const x=new Date(d);return '<span class="dh">'+x.toLocaleDateString('pt-BR')+'</span><span class="dh">'+x.toLocaleTimeString('pt-BR')+'</span>'};
 const fmtPrazo=p=>p?new Date(p+'T12:00:00').toLocaleDateString('pt-BR'):'—';
 const fimPrazo=d=>d&&d.prazo?new Date(d.prazo+'T23:59:59'):null;
 function statusDoc(d,envios){
@@ -274,7 +288,7 @@ async function enviar(id,btn){const d=docs.find(x=>x.id===id),f=$('f'+id).files[
   if(r.error)return msg('m-env','Falha no envio: '+r.error.message);
   $('f'+id).value='';arqSel(id);msg('m-env','"'+d.nome+'" enviado com sucesso!','ok');meus()}
 function pintaMeus(){
-  $('meus').innerHTML=meusArq.map(a=>`<tr><td data-l="Documento"><span class="tag">${esc(nomeDoc(a))}</span></td><td data-l="Arquivo">${esc(a.nome_arquivo)}</td><td data-l="Data e hora">${dt(a.enviado_em)}</td><td data-l="Status">${stArq(a)}</td><td data-l="Validação">${valHtml(a)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhum envio ainda.</td></tr>';
+  $('meus').innerHTML=meusArq.map(a=>`<tr><td data-l="Documento"><span class="tag">${esc(nomeDoc(a))}</span></td><td data-l="Arquivo">${esc(a.nome_arquivo)}</td><td data-l="Data e hora">${dtHtml(a.enviado_em)}</td><td data-l="Status">${stArq(a)}</td><td data-l="Validação">${valHtml(a)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhum envio ainda.</td></tr>';
   pintaPrazos()}
 async function meus(){await carregaMeus();pintaMeus()}
 async function atualizaDocs(){const antes=docs.map(d=>d.id).join();await carregaDocs();if(docs.map(d=>d.id).join()!==antes)renderDocs();else pintaPrazos()}

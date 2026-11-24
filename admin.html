@@ -134,6 +134,24 @@ main{max-width:1200px}
 .progtag{font-size:clamp(1.15rem,3vw,1.6rem);font-weight:700;color:var(--azul);padding-bottom:4px;border-bottom:4px solid;border-image:linear-gradient(90deg,var(--g1),var(--g2)) 1;display:inline-block}
 .home .card.prog h2{display:table;margin:0 auto 12px;white-space:nowrap;font-size:clamp(1.3rem,3.2vw,2rem)}
 .home .card.prog h2::after{width:100%}
+
+/* grade de arquivos: título do campo e informação centralizados */
+.ctr th,.ctr td{text-align:center;vertical-align:middle}
+.ctr .tag{text-align:center}
+/* botões do modal: 2 por linha; "Fechar" ocupa a linha inteira */
+.row.acoes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.row.acoes button{width:100%;padding-left:8px;padding-right:8px}
+.row.acoes .sec{grid-column:1/-1}
+@media(max-width:340px){.row.acoes{grid-template-columns:1fr}}
+@media(max-width:820px){
+ .ctr td{flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:4px}
+ .ctr td[data-l]::before{text-align:center}
+ .ctr td:last-child{padding-bottom:10px}
+}
+
+/* data e hora: data inteira em cima, hora embaixo */
+.dh{display:block;white-space:nowrap}
+.dh+.dh{margin-top:2px}
 </style>
 </head>
 <body>
@@ -173,16 +191,16 @@ main{max-width:1200px}
     <div class="row" style="margin:0"><button class="ouro" id="b-zip" onclick="exportarZip()">Exportar todos (ZIP)</button><button class="sec" onclick="admCarregar()">Atualizar</button><button class="sec" onclick="abrirCod()">Alterar código de acesso</button><button class="sec" onclick="sair()">Sair</button></div></div>
   <div class="card">
     <input type="text" id="busca" placeholder="Buscar por nome, escola ou documento..." oninput="admRender()" style="margin-bottom:12px">
-    <div class="tbl"><table><thead><tr><th>Escola</th><th>Nome do arquivo</th><th>Documento</th><th>Data e hora</th><th>Status</th><th>Validação</th></tr></thead><tbody id="lista"></tbody></table></div>
+    <div class="tbl"><table class="ctr"><thead><tr><th>Escola</th><th>Nome do arquivo</th><th>Documento</th><th>Data e hora</th><th>Status</th><th>Validação</th></tr></thead><tbody id="lista"></tbody></table></div>
     <div id="m-lista" class="msg"></div>
   </div>
-  <div class="card"><h2>Escolas cadastradas</h2><div class="tbl"><table><thead><tr><th>Escola</th><th>Cadastro</th><th>Senha</th><th>Ação</th></tr></thead><tbody id="escolas"></tbody></table></div><div id="m-esc" class="msg"></div></div>
+  <div class="card"><h2>Escolas cadastradas</h2><div class="tbl"><table class="ctr"><thead><tr><th>Escola</th><th>Cadastro</th><th>Senha</th><th>Ação</th></tr></thead><tbody id="escolas"></tbody></table></div><div id="m-esc" class="msg"></div></div>
 </section>
 </main>
 <div class="modal" id="modal" onclick="if(event.target===this)fechar()">
   <div class="box"><h2 style="margin:0 0 6px;color:var(--azul)">Arquivo enviado</h2>
     <dl><dt>Nome do arquivo</dt><dd id="d-nome"></dd><dt>Documento</dt><dd id="d-tipo"></dd><dt>Escola</dt><dd id="d-por"></dd><dt>Data e hora do envio</dt><dd id="d-data"></dd><dt>Validação</dt><dd id="d-val"></dd></dl>
-    <div class="row"><button id="b-baixar" onclick="baixar()">⬇ Baixar arquivo</button><button class="verde" id="b-val" onclick="alternarVal()">✔ Validado</button><button class="vermelho" id="b-rep" onclick="alternarRep()">✖ Reprovado</button><button class="sec" onclick="fechar()">Fechar</button></div>
+    <div class="row acoes"><button id="b-baixar" onclick="baixar()">⬇ Baixar arquivo</button><button class="verde" id="b-val" onclick="alternarVal()">✔ Validado</button><button class="vermelho" id="b-rep" onclick="alternarRep()">✖ Reprovado</button><button type="button" class="rem" id="b-exc" onclick="excluirArq(atual&&atual.id,this)">🗑 Excluir</button><button class="sec" onclick="fechar()">Fechar</button></div>
   </div>
 </div>
 <div class="modal" id="modal2" onclick="if(event.target===this)this.classList.remove('on')">
@@ -218,6 +236,7 @@ let user=null, admHash=null, arquivos=[], atual=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dt=d=>new Date(d).toLocaleString('pt-BR');
+const dtHtml=d=>{const x=new Date(d);return '<span class="dh">'+x.toLocaleDateString('pt-BR')+'</span><span class="dh">'+x.toLocaleTimeString('pt-BR')+'</span>'};
 const fmtPrazo=p=>p?new Date(p+'T12:00:00').toLocaleDateString('pt-BR'):'—';
 const fimPrazo=d=>d&&d.prazo?new Date(d.prazo+'T23:59:59'):null;
 function statusDoc(d,envios){
@@ -249,13 +268,30 @@ async function admCarregar(){limpar('m-lista');
 function admRender(){const q=$('busca').value.toLowerCase();
   const l=arquivos.filter(a=>[a.nome_arquivo,nomeDoc(a),a.usuario_nome,a.escola].join(' ').toLowerCase().includes(q));
   $('qtd').textContent=arquivos.length;
-  $('lista').innerHTML=l.map(a=>`<tr class="item" onclick="abrir('${a.id}')"><td data-l="Escola">${esc(a.escola)}</td><td data-l="Arquivo">📄 ${esc(a.nome_arquivo)}</td><td data-l="Documento"><span class="tag">${esc(nomeDoc(a))}</span></td><td data-l="Data e hora">${dt(a.enviado_em)}</td><td data-l="Status">${stArq(a)}</td><td data-l="Validação">${valHtml(a)}</td></tr>`).join('')||'<tr><td colspan="6">Nenhum arquivo encontrado.</td></tr>'}
+  $('lista').innerHTML=l.map(a=>`<tr class="item" onclick="abrir('${a.id}')"><td data-l="Escola">${esc(a.escola)}</td><td data-l="Arquivo">📄 ${esc(a.nome_arquivo)}</td><td data-l="Documento"><span class="tag">${esc(nomeDoc(a))}</span></td><td data-l="Data e hora">${dtHtml(a.enviado_em)}</td><td data-l="Status">${stArq(a)}</td><td data-l="Validação">${valHtml(a)}</td></tr>`).join('')||'<tr><td colspan="6">Nenhum arquivo encontrado.</td></tr>'}
 function abrir(id){atual=arquivos.find(a=>a.id===id);if(!atual)return;
   $('d-nome').textContent=atual.nome_arquivo;$('d-tipo').textContent=nomeDoc(atual);
   $('d-por').textContent=atual.escola;$('d-data').textContent=dt(atual.enviado_em);pintaVal();
   $('modal').classList.add('on')}
 function fechar(){$('modal').classList.remove('on')}
 function salvar(blob,nome){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=nome;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)}
+async function excluirArq(id,btn){
+  const a=arquivos.find(x=>String(x.id)===String(id));if(!a)return;
+  if(!confirm('Excluir o arquivo "'+a.nome_arquivo+'" ('+a.escola+')?\n\nEle será removido definitivamente e deixará de aparecer na lista de envios da escola. Esta ação não pode ser desfeita.'))return;
+  if(btn)btn.disabled=true;
+  /* 1º apaga o registro (é ele que alimenta a lista de envios da escola) */
+  const {data,error}=await sb.from('pdde_arquivos').delete().eq('id',a.id).select();
+  if(btn)btn.disabled=false;
+  if(error)return alert(error.code==='23503'?'Não foi possível excluir: existem registros vinculados a este arquivo.':'Não foi possível excluir: '+error.message);
+  if(!data||!data.length)return alert('O banco não permitiu a exclusão (nenhuma linha removida). Falta a permissão de DELETE na tabela pdde_arquivos (política RLS). Execute o SQL de permissão no Supabase.');
+  /* 2º remove o arquivo físico do Storage */
+  let aviso='';
+  if(a.caminho){const r=await sb.storage.from(BUCKET).remove([a.caminho]);
+    if(r.error||!r.data||!r.data.length)aviso=' Atenção: o registro foi excluído, mas o arquivo físico não pôde ser apagado do Storage (verifique a política de DELETE do bucket).'}
+  arquivos=arquivos.filter(x=>String(x.id)!==String(a.id));
+  if(atual&&String(atual.id)===String(a.id)){atual=null;fechar()}
+  admRender();
+  msg('m-lista','Arquivo excluído. A lista de envios da escola será atualizada automaticamente.'+aviso,aviso?'erro':'ok')}
 async function baixar(){if(!atual)return;const b=$('b-baixar');b.disabled=true;
   const {data,error}=await sb.storage.from(BUCKET).download(atual.caminho);b.disabled=false;
   if(error)return alert('Erro ao baixar: '+error.message);salvar(data,atual.nome_arquivo)}
