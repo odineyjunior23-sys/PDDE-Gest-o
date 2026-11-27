@@ -152,6 +152,22 @@ main{max-width:1200px}
 /* data e hora: data inteira em cima, hora embaixo */
 .dh{display:block;white-space:nowrap}
 .dh+.dh{margin-top:2px}
+
+/* ===== Normas e orientações (admin) ===== */
+.guia-adm{max-width:780px;margin:22px auto 0;background:#fff;border:1px solid var(--borda);border-radius:12px;padding:clamp(16px,3.5vw,26px);box-shadow:0 2px 8px rgba(10,61,143,.07);text-align:left}
+.guia-adm h3{margin:0 0 4px;color:var(--azul);font-size:clamp(1.1rem,2.6vw,1.35rem);display:inline-block;padding-bottom:6px;border-bottom:4px solid;border-image:linear-gradient(90deg,var(--g1),var(--g2)) 1}
+.guia-adm .sub{margin:8px 0 4px;color:#5a6b87;font-size:.88rem}
+.guia-adm .tabs{margin:12px 0 0}.guia-adm .tabs button{flex:1}
+.guia-adm .up{margin-top:10px}
+.guia-adm small{color:#5a6b87}
+.g-itens{display:grid;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--borda)}
+.g-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--borda);border-radius:10px;background:#f8fafd}
+.g-item .gt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.g-item .gt b{color:var(--azul);overflow-wrap:anywhere}
+.g-item .gt a{color:#5a6b87;font-size:.78rem;overflow-wrap:anywhere}
+.g-item .tag{flex:none}
+.g-item button{flex:none;min-height:40px;padding:8px 14px}
+@media(max-width:480px){.g-item{flex-wrap:wrap}.g-item .gt{flex-basis:100%}.g-item button{flex:1}}
 </style>
 </head>
 <body>
@@ -182,8 +198,18 @@ main{max-width:1200px}
   <div class="grid" style="max-width:780px;margin:16px auto 0">
 <div class="card prog" onclick="escolherProgAdm('basico')"><h2>PDDE Básico</h2><p>Verificar os documentos do PDDE Básico.</p></div>
 <div class="card prog" onclick="escolherProgAdm('qualidade')"><h2>PDDE Qualidade</h2><p>Verificar os documentos do PDDE Qualidade.</p></div></div>
+  <div class="guia-adm">
+    <h3>Normas e orientações</h3>
+    <p class="sub">Publique um link ou um documento. Ele aparecerá na tela inicial das escolas, logo abaixo da seleção do programa.</p>
+    <label for="g-titulo">Nome exibido (opcional)</label><input type="text" id="g-titulo" maxlength="80" placeholder="Ex.: Normas e orientações do PDDE 2026">
+    <div class="tabs"><button type="button" id="g-t-link" class="on" onclick="guiaTipo('link')">🔗 Link</button><button type="button" id="g-t-arq" onclick="guiaTipo('arquivo')">📄 Documento</button></div>
+    <div id="g-box-link"><label for="g-url">Endereço do link</label><input type="text" id="g-url" inputmode="url" autocapitalize="off" autocomplete="off" placeholder="https://..."></div>
+    <div id="g-box-arq" class="hide up"><label for="g-arq" style="margin-top:0">Arquivo a disponibilizar</label><input type="file" id="g-arq" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.png,.jpg,.jpeg"><small>PDF, Word, Excel, PowerPoint ou imagem · máx. 25 MB</small></div>
+    <div class="row"><button class="verde" id="g-add" onclick="guiaAdd(this)">Publicar para as escolas</button></div>
+    <div id="m-guia" class="msg"></div>
+    <div class="g-itens" id="g-lista"></div>
+  </div>
 </section>
-
 <section id="v-adm" class="hide">
   <div class="bar"><div class="progtag" id="a-prog"></div><div class="row" style="margin:0"><button class="sec" onclick="trocaProgAdm()">Trocar PDDE</button></div></div>
   <div class="card"><div class="bar" style="margin-bottom:12px"><h2 style="margin:0">Prazos de entrega</h2><button onclick="addDoc()">+ Adicionar documento</button></div><div id="ed"></div><div class="row" style="margin-top:0"><button class="verde" onclick="salvarDocs()">Salvar prazos</button></div><div id="m-docs" class="msg"></div></div>
@@ -260,7 +286,7 @@ function admPrepara(){limpar('m-adm');$('a-senha').value=''}
 async function admEntrar(e){e.preventDefault();if(!ok)return false;
   const {error}=await sb.auth.signInWithPassword({email:ADMIN_EMAIL,password:$('a-senha').value});
   if(error)return msg('m-adm','Código de acesso incorreto.'),false;
-  $('a-senha').value='';ir('adm-prog');return false}
+  $('a-senha').value='';ir('adm-prog');carregaGuias();return false}
 async function admCarregar(){limpar('m-lista');
   const {data,error}=await sb.from('pdde_arquivos').select('*').eq('programa',prog).order('enviado_em',{ascending:false});
   if(error)return msg('m-lista','Erro ao carregar: '+error.message);
@@ -388,6 +414,48 @@ async function redefinir(id){const u=escolasLista.find(x=>x.id===id);if(!u)retur
   tempAtual=s;$('t-escola').textContent=u.escola;$('t-senha').textContent=s;$('m-temp').classList.add('on');carregaEscolas()}
 function copiarTemp(){if(navigator.clipboard)navigator.clipboard.writeText(tempAtual).then(()=>alert('Senha copiada.'),()=>{})}
 function fechaTemp(){tempAtual='';$('t-senha').textContent='';$('m-temp').classList.remove('on')}
+
+/* ===== Normas e orientações ===== */
+const GBUCKET='pdde-guias';let guias=[],gTipo='link';
+const urlSegura=u=>{try{const x=new URL(u);return x.protocol==='https:'||x.protocol==='http:'}catch(e){return false}};
+function guiaTipo(t){gTipo=t;$('g-box-link').classList.toggle('hide',t!=='link');$('g-box-arq').classList.toggle('hide',t!=='arquivo');$('g-t-link').classList.toggle('on',t==='link');$('g-t-arq').classList.toggle('on',t==='arquivo');limpar('m-guia')}
+async function carregaGuias(){
+  const {data,error}=await sb.from('pdde_guias').select('*').order('ordem').order('id');
+  if(error)return msg('m-guia','Erro ao carregar o guia: '+error.message+' (execute o SQL guia_orientacao.sql no Supabase)');
+  guias=data||[];pintaGuias()}
+function pintaGuias(){
+  $('g-lista').innerHTML=guias.length?guias.map(g=>`<div class="g-item"><span class="tag">${g.tipo==='arquivo'?'Documento':'Link'}</span><div class="gt"><b>${esc(g.titulo)}</b><a href="${esc(g.url)}" target="_blank" rel="noopener noreferrer">${esc(g.tipo==='arquivo'?(g.nome_arquivo||'Abrir documento'):g.url)}</a></div><button class="rem" onclick="guiaRem(${g.id},this)">Remover</button></div>`).join(''):'<small>Nenhum guia publicado. As escolas não verão esta seção.</small>'}
+async function guiaAdd(btn){limpar('m-guia');
+  const titulo=$('g-titulo').value.trim()||'Normas e orientações';
+  const ordem=Math.max(0,...guias.map(g=>g.ordem||0))+1;
+  let reg={titulo,tipo:gTipo,ordem},up=null;
+  if(gTipo==='link'){
+    let u=$('g-url').value.trim();if(!u)return msg('m-guia','Informe o endereço do link.');
+    if(!/^[a-z][a-z0-9+.-]*:/i.test(u))u='https://'+u;
+    if(!urlSegura(u))return msg('m-guia','Link inválido. Use um endereço que comece com http:// ou https://.');
+    reg.url=u}
+  else{
+    const f=$('g-arq').files[0];if(!f)return msg('m-guia','Selecione o arquivo a disponibilizar.');
+    if(f.size>MAX_MB*1048576)return msg('m-guia','Arquivo maior que '+MAX_MB+' MB.');
+    btn.disabled=true;btn.textContent='Enviando...';
+    const caminho=`guias/${Date.now()}_${f.name.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w.\-]+/g,'_')}`;
+    const r=await sb.storage.from(GBUCKET).upload(caminho,f,{contentType:f.type||'application/octet-stream'});
+    if(r.error){btn.disabled=false;btn.textContent='Publicar para as escolas';return msg('m-guia','Falha no envio do arquivo: '+r.error.message+' (execute o SQL guia_orientacao.sql no Supabase)')}
+    up=caminho;reg.caminho=caminho;reg.nome_arquivo=f.name;reg.url=sb.storage.from(GBUCKET).getPublicUrl(caminho).data.publicUrl}
+  btn.disabled=true;
+  const {data,error}=await sb.from('pdde_guias').insert(reg).select();
+  btn.disabled=false;btn.textContent='Publicar para as escolas';
+  if(error||!data||!data.length){if(up)await sb.storage.from(GBUCKET).remove([up]);return msg('m-guia','Não foi possível publicar'+(error?': '+error.message:'.')+' (execute o SQL guia_orientacao.sql no Supabase)')}
+  $('g-titulo').value='';$('g-url').value='';$('g-arq').value='';
+  await carregaGuias();msg('m-guia','Publicado! As escolas já podem acessar.','ok')}
+async function guiaRem(id,btn){const g=guias.find(x=>x.id===id);if(!g)return;
+  if(!confirm('Remover "'+g.titulo+'"? As escolas deixarão de ver este item.'))return;
+  btn.disabled=true;
+  const {data,error}=await sb.from('pdde_guias').delete().eq('id',id).select();
+  btn.disabled=false;
+  if(error||!data||!data.length)return msg('m-guia','Não foi possível remover'+(error?': '+error.message:'. Falta permissão de DELETE (execute o SQL guia_orientacao.sql).'));
+  if(g.caminho)await sb.storage.from(GBUCKET).remove([g.caminho]);
+  await carregaGuias();msg('m-guia','Item removido.','ok')}
 /* escolha do programa no painel */
 async function escolherProgAdm(p){prog=p;$('a-prog').textContent=PROGS[p];arquivos=[];admRender();
   await carregaDocs();renderEd();ir('adm');admCarregar();iniciaAdm();carregaEscolas()}

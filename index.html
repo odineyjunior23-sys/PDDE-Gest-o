@@ -143,6 +143,19 @@ footer{padding:0 16px}
 /* data e hora: data inteira em cima, hora embaixo */
 .dh{display:block;white-space:nowrap}
 .dh+.dh{margin-top:2px}
+
+/* ===== Normas e orientações (usuário) ===== */
+.guia{max-width:780px;margin:22px auto 0;background:#fff;border:1px solid var(--borda);border-radius:12px;padding:clamp(16px,3.5vw,26px);box-shadow:0 2px 8px rgba(10,61,143,.07);text-align:left}
+.guia h3{margin:0 0 14px;color:var(--azul);font-size:clamp(1.1rem,2.6vw,1.35rem);display:inline-block;padding-bottom:6px;border-bottom:4px solid;border-image:linear-gradient(90deg,var(--g1),var(--g2)) 1}
+.guia-l{display:grid;gap:10px}
+.guia-i{display:flex;align-items:center;gap:14px;padding:12px 14px;border:1px solid var(--borda);border-radius:10px;background:#f8fafd;color:var(--txt);text-decoration:none;transition:.15s;min-height:56px}
+.guia-i:hover,.guia-i:focus-visible{border-color:var(--ouro);background:#fff7d1;transform:translateY(-2px);outline:none}
+.guia-i .gi{flex:none;width:44px;height:44px;border-radius:10px;background:var(--azul);color:#fff;display:flex;align-items:center;justify-content:center}
+.guia-i .gt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.guia-i .gt b{color:var(--azul);font-size:1rem;overflow-wrap:anywhere}
+.guia-i .gt small{color:#5a6b87;font-size:.8rem}
+.guia-i .gs{flex:none;color:var(--azul);line-height:0}
+@media(hover:none){.guia-i:hover{transform:none}}
 </style>
 </head>
 <body>
@@ -183,6 +196,7 @@ footer{padding:0 16px}
   <div class="grid" style="max-width:780px;margin:16px auto 0">
 <div class="card prog" onclick="escolherProg('basico')"><h2>PDDE Básico</h2><p>Enviar os documentos do PDDE Básico.</p></div>
 <div class="card prog" onclick="escolherProg('qualidade')"><h2>PDDE Qualidade</h2><p>Enviar os documentos do PDDE Qualidade.</p></div></div>
+<div class="guia hide" id="guia"><h3>Normas e orientações</h3><div class="guia-l" id="guia-l"></div></div>
 </section>
 
 <section id="v-envio" class="hide">
@@ -266,7 +280,7 @@ async function entrar(e){e.preventDefault();if(!ok)return false;
   user=data[0];user.chave=login;$('f-in').reset();outroVis('l');limpar('m-user');
   $('u-escola').textContent=$('u-escola2').textContent=user.escola;
   
-  limpar('m-env');ir('prog');if(user.trocar_senha)abrirSenha(true);return false}
+  limpar('m-env');ir('prog');carregaGuias();if(user.trocar_senha)abrirSenha(true);return false}
 let meusArq=[];
 async function carregaMeus(){const {data}=await sb.rpc('pdde_meus_arquivos',{p_usuario:user.id});meusArq=(data||[]).filter(a=>a.programa===prog)}
 const stDoc=d=>bdg(...statusDoc(d,meusArq.filter(a=>a.documento_id===d.id)));
@@ -342,7 +356,19 @@ function limparArq(id){$('f'+id).value='';arqSel(id);limpar('m-env')}
 /* escolha do programa: PDDE Básico ou PDDE Qualidade */
 async function escolherProg(p){prog=p;$('u-prog').textContent=PROGS[p];meusArq=[];
   await carregaDocs();renderDocs();await meus();limpar('m-env');ir('envio');iniciaRT()}
-function trocaProg(){fimRT();prog=null;ir('prog')}
+function trocaProg(){fimRT();prog=null;ir('prog');carregaGuias()}
+/* ===== Normas e orientações (links/documentos publicados pelo Administrador) ===== */
+const G_DOC='<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>';
+const G_SETA='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>';
+const urlSegura=u=>{try{const x=new URL(u);return x.protocol==='https:'||x.protocol==='http:'}catch(e){return false}};
+async function carregaGuias(){if(!ok)return;
+  const {data,error}=await sb.from('pdde_guias').select('*').order('ordem').order('id');
+  if(error)return;
+  const l=(data||[]).filter(g=>urlSegura(g.url));
+  $('guia').classList.toggle('hide',!l.length);
+  $('guia-l').innerHTML=l.map(g=>`<a class="guia-i" href="${esc(g.url)}" target="_blank" rel="noopener noreferrer"><span class="gi">${G_DOC}</span><span class="gt"><b>${esc(g.titulo||'Acessar normas e orientações')}</b><small>${g.tipo==='arquivo'?'Abrir documento':'Abrir link'}</small></span><span class="gs">${G_SETA}</span></a>`).join('')}
+setInterval(()=>{if(user&&!$('v-prog').classList.contains('hide'))carregaGuias()},30000);
+
 </script>
 </body>
 </html>
